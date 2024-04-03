@@ -2,6 +2,10 @@ const express = require('express');
 require('dotenv').config;
 const mongoose = require('mongoose');
 const app = express();
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const cookieparser = require('cookie-parser');
+
 
 
 app.set('view engine', 'ejs');
@@ -12,6 +16,10 @@ app.use(express.static('public'));
 const url =`mongodb+srv://David:Password@cluster0.4fm7mu2.mongodb.net/`;
 
 
+app.get('/', (req, res) =>{
+    res.render('login');
+
+});
 
 
 mongoose.connect(url)
