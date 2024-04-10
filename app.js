@@ -64,6 +64,11 @@ app.post('/',async  (req, res) => {
     }
     });
 
+    jwt.verify(token, secretKey, (err, decoded) =>{
+        console.log(token);
+        console.log(decoded);
+    });
+
 });
 
  
@@ -104,6 +109,20 @@ app.get('/register', (req, res) =>{
     res.render('register');
 });
  
+app.post('/addstudents', (req, res) =>{
+
+const student = new Record({
+
+    name: req.body.name,
+    email:req.body.email
+});
+    student.save();
+    res.redirect('/home');
+
+});
+
+
+
 mongoose.connect(url) 
 .then(() =>{ 
     console.log('Connected to MongoDB Database'); 
@@ -120,7 +139,10 @@ const students = await Record.find({});
 //using max method with cascade operator to perform function on all students
 const maxAttendanceCount = Math.max(...students.map(r =>  students.AttendanceCount));
 
+
+
 res.render('attendance', {students, maxAttendanceCount});
+
 
 });
 
