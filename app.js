@@ -7,6 +7,8 @@ const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const Student = require('./student.js');
 const Record = require('./record.js');
+const session = require ('express-session');
+const secretKey = 'my_secret_key';
 const app = express();
 
 
@@ -17,6 +19,42 @@ app.set('views', './views');
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieParser());
+app.use(session({
+  secret: secretKey ,
+  resave: false,
+  saveUninitialized: false,
+}))
+
+//High-level Middleware functio for JWT authentication
+function authenticationToken(req, res, next){
+
+  const token = req.cookies.jwt;
+
+    if(token){
+
+      jwt.verify(token, secretKey, (err, decoded) =>{
+
+        if(err) return res.status(401).send('Invalid Token');
+
+        req.userId = decoded;
+
+        next();
+
+    });
+
+
+
+  }
+
+
+
+
+
+}
+
+
+
+
  
 const url = `mongodb+srv://David:Password@cluster0.4fm7mu2.mongodb.net/`; 
  
@@ -39,7 +77,7 @@ app.post('/' , async (req, res) => {
 
   const email = req.body.email;
   const password = req.body.password;
-  const secretKey = 'my_secret_key';
+  
 
   //Find user in the database by email
   const user =  await Student.findOne({email});
@@ -52,6 +90,11 @@ app.post('/' , async (req, res) => {
 
   //Creating and signing a JWT
   const unique = user._id.toString();
+
+
+  //storing userId in the session
+  req.session.userId = user._id.toString();
+
 
   //Create a jwt
   const token = jwt.sign(unique, secretKey);
@@ -127,10 +170,34 @@ app.post('/addstudent', (req, res) =>{
 
 });
 
+app.post('/deletestudent',async (req, res) =>{
+  
+  const studentName = req.body.name;
+
+  try{
+    const result = await Record.deleteOne({ name: studentName});
+
+    if(result.deletedCount === 0){
+
+      res.status(404).send('user no dey. try again');
+
+    } else{
+      res.redirect('/home');
+    }
+
+  }catch(error){
+
+
+  }
 
 
 
-app.get('/home', async (req, res) =>{
+});
+
+
+
+
+app.get('/home', authenticationToken,  async (req, res) =>{
 
   const students = await Record.find({});
 
@@ -170,6 +237,26 @@ try{
 
 
 
+
+});
+
+app.post('/reset', async (req, res) =>{
+
+  try{
+    const students = await Record.find({});
+
+    for (let i = 0; i < students.length; i++){
+    students[i].attendanceCount = 0;
+    await students[i].save();
+    }
+
+    res.redirect('/home');
+
+  }catch(error){
+    res.status(500).send("an unknown error has occured while updating student records.");
+
+
+  }
 
 });
 
