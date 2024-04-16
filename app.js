@@ -7,7 +7,8 @@ const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const Student = require('./student.js');
 const Record = require('./record.js');
-const session = require ('express-session');
+const student = require('./student.js');
+const session = require('express-session');
 const secretKey = 'my_secret_key';
 const app = express();
 
@@ -20,40 +21,33 @@ app.use(express.static('public'));
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieParser());
 app.use(session({
-  secret: secretKey ,
+  secret: secretKey,
   resave: false,
   saveUninitialized: false,
 }))
 
-//High-level Middleware functio for JWT authentication
-function authenticationToken(req, res, next){
+//High-level middleware function for JWT authentication
+function authenticateToken(req, res, next){
 
-  const token = req.cookies.jwt;
+    const token = req.cookies.jwt;
 
     if(token){
 
-      jwt.verify(token, secretKey, (err, decoded) =>{
 
-        if(err) return res.status(401).send('Invalid Token');
+      jwt.verify(token, secretKey, (err, decoded) => {
 
-        req.userId = decoded;
+          if(err) {
+            return res.status(401).send('Invalid Token');
+          }
 
-        next();
+            req.userId = decoded;
 
-    });
-
-
-
-  }
-
-
-
-
-
+          next();
+      })
+    } else {
+      res.status(401).render('401');
+    }
 }
-
-
-
 
  
 const url = `mongodb+srv://David:Password@cluster0.4fm7mu2.mongodb.net/`; 
@@ -92,9 +86,8 @@ app.post('/' , async (req, res) => {
   const unique = user._id.toString();
 
 
-  //storing userId in the session
+  //Storing userId in the session
   req.session.userId = user._id.toString();
-
 
   //Create a jwt
   const token = jwt.sign(unique, secretKey);
@@ -109,11 +102,6 @@ app.post('/' , async (req, res) => {
     } else {
       res.send('Password does not match our records. Please try again')
     }
-  });
-
-  jwt.verify(token, secretKey, (err, decoded) =>{
-    console.log(token);
-   console.log(decoded);
   });
 
 });
@@ -131,138 +119,178 @@ app.post('/register', (req, res) =>{
      // return;
   //}
 
-  //Check if the confirm password equals the password
-  if(password !== confirmPassword){
-        res.status(400).send('Passwords do not match!');
-        return;
-  }
+   //Check if the confirm password equals the password
+   if(password !== confirmPassword){
+    res.status(400).send('Passwords do not match!');
+    return;
+}
 
-  bcrypt.hash(password, 12, (err, hashedPassword) =>{
+bcrypt.hash(password, 12, (err, hashedPassword) =>{
 
-    const user = new Student({
-      email: email,
-      password: hashedPassword,
-    });
+const user = new Student({
+  email: email,
+  password: hashedPassword,
+});
 
-    user.save();
+user.save();
 
-    res.redirect('/');
+res.redirect('/');
 
-  });
+});
 });
 
 
 app.get('/register', (req, res) => {
-  res.render('register');
+res.render('register');
 });
 
 
 app.post('/addstudent', (req, res) =>{
-  
-  const student = new Record({
-    name: req.body.name,
-    email: req.body.email
-  });
 
-  student.save();
+const student = new Record({
+name: req.body.name,
+email: req.body.email
+});
 
+student.save();
+
+res.redirect('/home');
+
+});
+
+
+app.post('/deletestudent', async (req, res) =>{
+
+const studentName = req.body.name;
+const trimmedName = studentName.trim();
+
+try{
+const result = await Record.deleteOne({ name: studentName});
+
+if(result.deletedCount === 0){
+  res.status(404).send('User does not exist.  Try again.');
+} else {
   res.redirect('/home');
+}
 
-});
+} catch(error){
 
-app.post('/deletestudent',async (req, res) =>{
-  
-  const studentName = req.body.name;
-
-  try{
-    const result = await Record.deleteOne({ name: studentName});
-
-    if(result.deletedCount === 0){
-
-      res.status(404).send('user no dey. try again');
-
-    } else{
-      res.redirect('/home');
-    }
-
-  }catch(error){
-
-
-  }
-
-
+}
 
 });
 
 
 
 
-app.get('/home', authenticationToken,  async (req, res) =>{
+app.get('/home', authenticateToken,  async (req, res) =>{
 
-  const students = await Record.find({});
+const students = await Record.find({});
 
-  //Using max method with cascade operator to perform function on all students
-  const maxAttendanceCount = Math.max(...students.map(student => student.attendanceCount));
-  
+//Using max method with cascade operator to perform function on all students
+const maxAttendanceCount = Math.max(...students.map(student => student.attendanceCount));
 
-  res.render('attendance.ejs', {students, maxAttendanceCount});
+
+res.render('attendance.ejs', {students, maxAttendanceCount});
 
 });
+
+
+
 
 app.post('/update-student', async (req, res) =>{
 
 const attendanceDate  = req.body.attendanceDate;
+const length = req.body.attendance ? req.body.attendance.length: 0;
 
-const length =req.body.attendance ? req.body.attendance.length: 0;
 
-console.log(req.body.email2);
+try {
+  for(let i = 0; i < length; i++){
 
-try{
-   for(let i = 0; i < length; i++){
-     const studentId =req.body.attendance[i];
-     const result = await Record.findByIdAndUpdate(
-         studentId,
-        {
-             $inc: {attendanceCount: 1},
-             $set: {attendanceDate: new Date(attendanceDate)}
-        },
-          {new: true},
-     );
-    res.redirect('/home');
-    }
+    const studentId = req.body.attendance[i];
+    const result = await Record.findByIdAndUpdate(
+      studentId,
+      {
+        $inc: {attendanceCount: 1},
+        $set: {attendanceDate: new Date(attendanceDate)}
+      },
+      {new: true},
+    );
+  }
+  return res.status(200).redirect('/home');
 } catch(err){
-    res.status(500).send("an unknown error has occured while updating student records.");
-
+ res.status(500).send("An unknown error has occurred while updating student records.");
 }
-
-
-
-
 });
+
+app.get('/api/v2', async (req, res) => {
+try {
+ const records = await Record.find({});
+ const formatted = JSON.stringify(records);
+ res.send(formatted);
+} catch (error) {
+ console.error("Error fetching records:", error);
+ res.status(500).send("Error fetching records");
+}
+});
+
+app.post('/api/v2', async (req, res) =>{
+
+  try{
+    const {name, email} = req.body;
+
+    //create the new student record
+    const student = new Record({
+      name: name,
+      email: email,
+    });
+
+    await student.save(); 
+      res.status(200).json({message: "student record sucessfully created."});
+    }catch(error){
+    res.status(500).json({message: "Error occured while adding student record"});
+   } 
+  });
+
+
 
 app.post('/reset', async (req, res) =>{
 
-  try{
-    const students = await Record.find({});
+try{
+const students = await Record.find({});
 
-    for (let i = 0; i < students.length; i++){
-    students[i].attendanceCount = 0;
-    await students[i].save();
+for(let i = 0; i < students.length; i++){
+students[i].attendanceCount = 0;
+await students[i].save();
+}
+
+res.redirect('/home');
+
+}catch(error){
+
+res.status(500).send("An unknown error has occurred while updating student records.");
+
+}
+});
+
+app.post('/logout', (req, res) =>{
+
+  res.clearCookie('jwt');
+
+  req.session.userId = null;
+
+  req.session.destroy((err) =>{
+    if(err){
+      res.status(500).send('Internal Server Error');
+    }else{
+      res.redirect('/');
     }
 
-    res.redirect('/home');
-
-  }catch(error){
-    res.status(500).send("an unknown error has occured while updating student records.");
-
-
-  }
-
+  }); 
 });
 
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, ()=>{
-  console.log(`Successfully connected to ${PORT}`);
+console.log(`Successfully connected to ${PORT}`);
 });

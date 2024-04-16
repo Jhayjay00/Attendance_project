@@ -50,7 +50,7 @@
                         <% if(record.attendanceCount < maxAttendanceCount) { %>
 
                         <td><%= record.name %> <i class="fa-solid fa-triangle-exclamation"
-                            style="color:rgb(100, 206, 39);font-size:8px;padding:5px;">Falling Behind</i>
+                            style="color:rgb(142, 19, 158);font-size:8px;padding:5px;">Lazy student</i>
                             </i></td>
 
                        <% } else { %>
@@ -141,10 +141,22 @@
 
 </script>
 
+<script> 
+const checkbox = document.querySelector('input[type="checkbox"]');
 
+checkboxes.forEach((checkbox) =>{
+    checkbox.addEventListener('change', () => {
+        const hiddenInput = checkbox.parentNode.querySelector('input[type="hidden"]');
 
+            if(checkbox.checked){
+                hiddenInput.value = checkbox.value;
+            } else {
+                hiddenInput.value;
+            }
+    });
+});
 
-
+</script>
 
 <script  src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
