@@ -9,7 +9,14 @@ const Student = require('./student.js');
 const Record = require('./record.js');
 const student = require('./student.js');
 const session = require('express-session');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan')
 const secretKey = 'my_secret_key';
+const YAML = require('yamljs');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = YAML.load('./swagger.yaml'); //load your Swagger YAML file
+const path = require('path');
+const fs = require('fs')
 const app = express();
 
 
@@ -25,6 +32,14 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
 }))
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+//create a write stream (in append mode)
+var accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a'})
+
+//setup the logger 
+app.use(morgan('combined', {stream: accessLogStream}));
+
 
 //High-level middleware function for JWT authentication
 function authenticateToken(req, res, next){
@@ -49,6 +64,13 @@ function authenticateToken(req, res, next){
     }
 }
 
+//Rate limit configuration
+const apLimiter = rateLimit({
+  windowsMS: 1 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  LegacyHeaders: false,
+});
  
 const url = `mongodb+srv://David:Password@cluster0.4fm7mu2.mongodb.net/`; 
  
@@ -93,7 +115,7 @@ app.post('/' , async (req, res) => {
   const token = jwt.sign(unique, secretKey);
   
   //Stuff the token (jwt) inside the cookie and issue it
-   res.cookie('jwt', token, {maxAge: 5 * 60 * 1000, httpOnly: true});
+   res.cookie('jwt', token, {maxAge: 5 * 60 * 5000, httpOnly: true});
 
    bcrypt.compare(password, user.password, (err, result) =>{
 
@@ -222,7 +244,7 @@ try {
 }
 });
 
-app.get('/api/v2', async (req, res) => {
+app.get('/api/v2', apLimiter, async (req, res) => {
 try {
  const records = await Record.find({});
  const formatted = JSON.stringify(records);
